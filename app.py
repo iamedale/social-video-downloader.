@@ -3,7 +3,6 @@ import requests
 
 app = Flask(__name__)
 
-# Simple HTML template (served directly)
 HTML_FORM = """
 <!DOCTYPE html>
 <html>
@@ -35,18 +34,27 @@ def home():
 def download():
     url = request.args.get("url")
     if not url:
-        return jsonify({"error": "Please provide a TikTok video URL using ?url="}), 400
+        return jsonify({"error": "Please provide a TikTok video URL"}), 400
 
     try:
-        api_url = f"https://www.tikcdn.io/ssstik/?url={url}"
-        response = requests.get(api_url)
-        data = response.json()
+        # SSSTik backend API endpoint
+        api_url = "https://ssstik.io/abc"  # SSSTik uses POST requests
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "Mozilla/5.0"
+        }
+        payload = {"id": url, "locale": "en", "tt": "MzdfRFJk"}
+        response = requests.post(api_url, headers=headers, data=payload)
 
-        if "video" in data and "url" in data["video"]:
-            # Redirect user to the downloadable file
-            return redirect(data["video"]["url"], code=302)
-        else:
-            return jsonify({"error": "Failed to fetch video link", "details": data}), 500
+        if response.status_code == 200 and "url" in response.text:
+            # Find direct download link in response text
+            # We just look for the first href ending with .mp4
+            import re
+            match = re.search(r'href="([^"]+\.mp4)"', response.text)
+            if match:
+                return redirect(match.group(1), code=302)
+
+        return jsonify({"error": "Could not find a downloadable link."}), 500
 
     except Exception as e:
         return jsonify({"error": f"Download failed: {str(e)}"}), 500
