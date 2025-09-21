@@ -4,6 +4,9 @@ import io
 
 app = Flask(__name__)
 
+# Create TikTokApi object globally (no context manager)
+api = TikTokApi()
+
 @app.route("/")
 def home():
     return "TikTok Downloader is ready! Use /download?url=<video-link>"
@@ -15,20 +18,19 @@ def download():
         return jsonify({"error": "Please provide a TikTok video URL using ?url="}), 400
 
     try:
-        with TikTokApi() as api:
-            video = api.video(url=url)
-            video_bytes = video.bytes()
+        video = api.video(url=url)
+        video_bytes = video.bytes()
 
-            # Create a memory buffer for the video
-            buffer = io.BytesIO(video_bytes)
-            buffer.seek(0)
+        # Put video bytes into memory buffer
+        buffer = io.BytesIO(video_bytes)
+        buffer.seek(0)
 
-            return send_file(
-                buffer,
-                mimetype="video/mp4",
-                as_attachment=True,
-                download_name="tiktok_video.mp4"
-            )
+        return send_file(
+            buffer,
+            mimetype="video/mp4",
+            as_attachment=True,
+            download_name="tiktok_video.mp4"
+        )
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
