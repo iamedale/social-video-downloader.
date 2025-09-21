@@ -4,8 +4,9 @@ import io
 
 app = Flask(__name__)
 
-# ✅ Correct way to initialize TikTokApi (no context manager)
+# ✅ Initialize TikTokApi with a session
 api = TikTokApi()
+api.create_sessions()  # <-- this creates the session once at startup
 
 @app.route("/")
 def home():
@@ -18,11 +19,9 @@ def download():
         return jsonify({"error": "Please provide a TikTok video URL using ?url="}), 400
 
     try:
-        # ✅ Fetch the video data directly
         video = api.video(url=url)
         video_bytes = video.bytes()
 
-        # Put video bytes into a memory buffer
         buffer = io.BytesIO(video_bytes)
         buffer.seek(0)
 
