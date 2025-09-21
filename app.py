@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file, Response
+from flask import Flask, request, send_file, jsonify
 from TikTokApi import TikTokApi
 import io
 
@@ -12,27 +12,26 @@ def home():
 def download():
     url = request.args.get("url")
     if not url:
-        return {"error": "Please provide a TikTok video URL using ?url="}, 400
+        return jsonify({"error": "Please provide a TikTok video URL using ?url="}), 400
 
     try:
         with TikTokApi() as api:
             video = api.video(url=url)
             video_bytes = video.bytes()
 
-            # Use an in-memory bytes buffer
+            # Create a memory buffer for the video
             buffer = io.BytesIO(video_bytes)
             buffer.seek(0)
 
-            # send_file or send from memory
             return send_file(
                 buffer,
                 mimetype="video/mp4",
                 as_attachment=True,
-                download_name="video.mp4"
+                download_name="tiktok_video.mp4"
             )
 
     except Exception as e:
-        return {"error": str(e)}, 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
