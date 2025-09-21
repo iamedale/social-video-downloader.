@@ -1,16 +1,35 @@
-from flask import Flask, request, send_file, jsonify
-from TikTokApi import TikTokApi
-import io
+from flask import Flask, request, jsonify, redirect, render_template_string
+import requests
 
 app = Flask(__name__)
 
-# ✅ Initialize TikTokApi with a session
-api = TikTokApi()
-api.create_sessions()  # <-- this creates the session once at startup
+# Simple HTML template (served directly)
+HTML_FORM = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TikTok Video Downloader</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; padding: 50px; }
+        input { width: 80%; padding: 10px; margin: 10px 0; border-radius: 8px; border: 1px solid #ccc; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 8px; cursor: pointer; }
+        button:hover { background: #45a049; }
+    </style>
+</head>
+<body>
+    <h1>Download TikTok Videos</h1>
+    <form action="/download" method="get">
+        <input type="text" name="url" placeholder="Paste TikTok link here" required>
+        <br>
+        <button type="submit">Download</button>
+    </form>
+</body>
+</html>
+"""
 
 @app.route("/")
 def home():
-    return "TikTok Downloader is ready! Use /download?url=<video-link>"
+    return render_template_string(HTML_FORM)
 
 @app.route("/download")
 def download():
@@ -19,18 +38,15 @@ def download():
         return jsonify({"error": "Please provide a TikTok video URL using ?url="}), 400
 
     try:
-        video = api.video(url=url)
-        video_bytes = video.bytes()
+        api_url = f"https://www.tikcdn.io/ssstik/?url={url}"
+        response = requests.get(api_url)
+        data = response.json()
 
-        buffer = io.BytesIO(video_bytes)
-        buffer.seek(0)
-
-        return send_file(
-            buffer,
-            mimetype="video/mp4",
-            as_attachment=True,
-            download_name="tiktok_video.mp4"
-        )
+        if "video" in data and "url" in data["video"]:
+            # Redirect user to the downloadable file
+            return redirect(data["video"]["url"], code=302)
+        else:
+            return jsonify({"error": "Failed to fetch video link", "details": data}), 500
 
     except Exception as e:
         return jsonify({"error": f"Download failed: {str(e)}"}), 500
