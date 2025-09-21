@@ -1,2 +1,3 @@
-flask
-TikTokApi
+Flask
+requests
+beautifulsoup4
