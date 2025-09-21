@@ -4,7 +4,7 @@ import io
 
 app = Flask(__name__)
 
-# Create TikTokApi object globally (no context manager)
+# ✅ Correct way to initialize TikTokApi (no context manager)
 api = TikTokApi()
 
 @app.route("/")
@@ -18,10 +18,11 @@ def download():
         return jsonify({"error": "Please provide a TikTok video URL using ?url="}), 400
 
     try:
+        # ✅ Fetch the video data directly
         video = api.video(url=url)
         video_bytes = video.bytes()
 
-        # Put video bytes into memory buffer
+        # Put video bytes into a memory buffer
         buffer = io.BytesIO(video_bytes)
         buffer.seek(0)
 
@@ -33,7 +34,7 @@ def download():
         )
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": f"Download failed: {str(e)}"}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000)
