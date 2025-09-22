@@ -1,115 +1,210 @@
-# app.py
-from flask import Flask, request, redirect, render_template_string, jsonify, Response
+from flask import Flask, request, jsonify, render_template_string, Response
+import yt_dlp
 import requests
-from bs4 import BeautifulSoup
-import re
-from urllib.parse import quote_plus
-import traceback
+from flask_cors import CORS
 
 app = Flask(__name__)
+CORS(app)
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0 Safari/537.36"
-)
-
-HTML_FORM = """
-<!doctype html>
-<html>
+# ----------------- HTML Frontend -----------------
+HTML_PAGE = """
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Social Video Downloader</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TikTok Downloader</title>
   <style>
-    body{font-family: Arial, sans-serif; max-width:720px;margin:40px auto;padding:0 16px;}
-    input[type=text]{width:100%;padding:12px;border-radius:8px;border:1px solid #ccc;margin:8px 0;}
-    button{padding:10px 18px;border-radius:8px;background:#1f8ef1;color:#fff;border:none;cursor:pointer;}
-    .note{color:#666;font-size:0.9rem;margin-top:8px;}
-    .result{margin-top:18px;padding:12px;border-radius:8px;background:#f6f9ff;}
-    a.link{display:inline-block;margin:8px 0;padding:8px 12px;background:#2ecc71;color:white;border-radius:6px;text-decoration:none;}
-    .error{color:#b00020}
+    body { font-family: Arial, sans-serif; background:#f0f9ff; display:flex; justify-content:center; align-items:center; height:100vh; margin:0; }
+    .card { background:#fff; padding:20px; border-radius:10px; box-shadow:0 5px 15px rgba(0,0,0,0.1); width:90%; max-width:420px; text-align:center; }
+    h1 { margin-bottom:10px; }
+    input, select { width:100%; padding:10px; margin:10px 0; border:1px solid #ccc; border-radius:5px; }
+    button { background:#22c55e; color:#fff; padding:10px; width:100%; border:none; border-radius:5px; cursor:pointer; font-size:16px; margin-top:5px; }
+    button:disabled { background:#9ca3af; cursor:not-allowed; }
+    button:hover:enabled { background:#16a34a; }
+    p { color:gray; font-size:14px; }
+
+    .preview { margin-top:15px; display:none; }
+    .preview img { width:100%; border-radius:8px; margin-bottom:10px; }
+    .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #22c55e; border-radius: 50%; width: 28px; height: 28px; animation: spin 1s linear infinite; margin: 15px auto 0; display: none; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
-  <h1>Social Video Downloader</h1>
-  <p class="note">Paste a TikTok video link below and click Download. This app will try several methods to get a no-watermark MP4 (redirect recommended).</p>
+  <div class="card">
+    <h1>TikTok Downloader</h1>
+    <input type="text" id="url" placeholder="Paste TikTok link here" required>
+    <button onclick="fetchInfo()">🔍 Preview</button>
 
-  <form action="/download" method="get">
-    <input name="url" type="text" placeholder="Paste TikTok link (https://www.tiktok.com/…)" required>
-    <label style="display:block;margin:8px 0;">
-      <input type="checkbox" name="proxy"> Also offer server-proxied download (may be slower)
-    </label>
-    <button type="submit">Download</button>
-  </form>
-
-  {% if status %}
-    <div class="result">
-      {% if status.success %}
-        <p><strong>Found:</strong> {{ status.method }}</p>
-        <p><a class="link" href="{{ status.mp4_url }}" target="_blank" rel="noopener">Direct download / open in new tab</a></p>
-        {% if status.proxy_url %}
-          <p><a class="link" href="{{ status.proxy_url }}" target="_blank" rel="noopener">Server-proxied download (stream through this app)</a></p>
-        {% endif %}
-      {% else %}
-        <p class="error"><strong>Error:</strong> {{ status.error }}</p>
-        {% if status.details %}
-          <pre style="white-space:pre-wrap;font-size:0.9rem;color:#333">{{ status.details }}</pre>
-        {% endif %}
-      {% endif %}
+    <div class="preview" id="preview">
+      <img id="thumbnail" src="">
+      <h3 id="title"></h3>
+      <p id="duration"></p>
+      <select id="quality">
+        <option value="best">Best Quality</option>
+        <option value="720">720p</option>
+        <option value="480">480p</option>
+        <option value="360">360p</option>
+      </select>
+      <button onclick="startDownload('video')">⬇ Download Video</button>
+      <button onclick="startDownload('audio')">🎵 Download MP3</button>
     </div>
-  {% endif %}
 
-  <p class="note">Respect creators' rights and platform terms — use downloads for personal/educational reasons only.</p>
+    <div class="spinner" id="spinner"></div>
+  </div>
+
+  <script>
+    const spinner = document.getElementById("spinner");
+    const preview = document.getElementById("preview");
+
+    async function fetchInfo() {
+      const url = document.getElementById("url").value;
+      if (!url) {
+        alert("Please paste a TikTok link");
+        return;
+      }
+
+      spinner.style.display = "block";
+      try {
+        const res = await fetch("/info?url=" + encodeURIComponent(url));
+        const data = await res.json();
+
+        if (data.error) {
+          alert(data.error);
+        } else {
+          document.getElementById("thumbnail").src = data.thumbnail;
+          document.getElementById("title").innerText = data.title;
+          document.getElementById("duration").innerText = "Duration: " + data.duration + "s";
+          preview.style.display = "block";
+        }
+      } catch (err) {
+        alert("Failed to fetch video info");
+      }
+      spinner.style.display = "none";
+    }
+
+    function startDownload(type) {
+      const url = document.getElementById("url").value;
+      const quality = document.getElementById("quality").value;
+      spinner.style.display = "block";
+      window.location.href = "/download?url=" + encodeURIComponent(url) + "&type=" + type + "&quality=" + quality;
+      setTimeout(() => { spinner.style.display = "none"; }, 4000);
+    }
+  </script>
 </body>
 </html>
 """
 
-# ------------------------
-# helper functions
-# ------------------------
-def extract_mp4_from_html(html):
-    """Try a few HTML parsing strategies (meta tags, regex) to find a direct .mp4 URL."""
+# ----------------- Backend -----------------
+@app.route("/")
+def home():
+    return render_template_string(HTML_PAGE)
+
+# Get video info
+@app.route("/info")
+def info():
+    url = request.args.get("url")
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+
     try:
-        soup = BeautifulSoup(html, "html.parser")
-
-        # 1) Common meta properties
-        for prop in ("og:video:secure_url", "og:video", "og:video:url", "og:image"):
-            tag = soup.find("meta", {"property": prop})
-            if tag and tag.get("content"):
-                content = tag["content"]
-                if ".mp4" in content:
-                    return content
-
-        # 2) Look for plain links that end with .mp4
-        m = re.search(r"https?://[^\s\"'>]+\.mp4[^\s\"'>]*", html)
-        if m:
-            return m.group(0)
-
-        # 3) Try to find playAddr in JS-like content (escaped)
-        m2 = re.search(r'playAddr":"([^"]+)"', html)
-        if m2:
-            link = m2.group(1).replace("\\u0026", "&").replace("\\/", "/")
-            if ".mp4" in link:
-                return link
-
+        with yt_dlp.YoutubeDL({"quiet": True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+            return jsonify({
+                "title": info.get("title"),
+                "thumbnail": info.get("thumbnail"),
+                "duration": info.get("duration"),
+            })
     except Exception:
-        pass
-    return None
+        # fallback to TikWM API
+        try:
+            r = requests.post("https://www.tikwm.com/api/", data={"url": url})
+            data = r.json()
+            if data.get("data"):
+                return jsonify({
+                    "title": data["data"].get("title", "Unknown"),
+                    "thumbnail": data["data"].get("cover", ""),
+                    "duration": data["data"].get("duration", 0),
+                })
+        except Exception as e2:
+            return jsonify({"error": f"All methods failed: {e2}"}), 500
 
-def try_ssstik(url):
-    """Use ssstik.io endpoint and parse the returned HTML for an mp4 link."""
+# Download route
+@app.route("/download")
+def download():
+    url = request.args.get("url")
+    d_type = request.args.get("type", "video")
+    quality = request.args.get("quality", "best")
+
+    if not url:
+        return jsonify({"error": "No URL provided"}), 400
+
+    # --- yt-dlp first ---
     try:
-        api_url = "https://ssstik.io/abc"
-        headers = {"User-Agent": USER_AGENT, "Content-Type": "application/x-www-form-urlencoded"}
-        payload = {"id": url, "locale": "en", "tt": "MzdfRFJk"}
-        r = requests.post(api_url, headers=headers, data=payload, timeout=20)
-        if r.status_code == 200:
-            mp4 = extract_mp4_from_html(r.text)
-            if mp4:
-                return mp4, r.text
-    except Exception:
-        pass
-    return None, None
+        if d_type == "audio":
+            ydl_opts = {
+                "quiet": True,
+                "format": "bestaudio/best",
+                "postprocessors": [{
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": "192",
+                }],
+            }
+            filename = "audio.mp3"
+            content_type = "audio/mpeg"
+        else:
+            if quality == "720":
+                fmt = "bestvideo[height<=720]+bestaudio/best[height<=720]"
+            elif quality == "480":
+                fmt = "bestvideo[height<=480]+bestaudio/best[height<=480]"
+            elif quality == "360":
+                fmt = "bestvideo[height<=360]+bestaudio/best[height<=360]"
+            else:
+                fmt = "best"
 
+            ydl_opts = {"quiet": True, "format": fmt}
+            filename = "video.mp4"
+            content_type = "video/mp4"
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            download_url = info.get("url")
+
+            r = requests.get(download_url, stream=True)
+            return Response(
+                r.iter_content(chunk_size=1024),
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "Content-Type": content_type
+                }
+            )
+    except Exception as e:
+        print("yt-dlp failed:", str(e))
+
+    # --- TikWM fallback ---
+    try:
+        r = requests.post("https://www.tikwm.com/api/", data={"url": url})
+        data = r.json()
+        if data.get("data") and data["data"].get("play"):
+            video_url = data["data"]["play"]
+            r2 = requests.get(video_url, stream=True)
+            return Response(
+                r2.iter_content(chunk_size=1024),
+                headers={
+                    "Content-Disposition": "attachment; filename=video.mp4",
+                    "Content-Type": "video/mp4"
+                }
+            )
+        else:
+            return jsonify({"error": "TikWM API failed"}), 500
+    except Exception as e2:
+        return jsonify({"error": f"All methods failed: {e2}"}), 500
+
+
+# ----------------- Run -----------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
 def try_tikcdn(url):
     """Call tikcdn endpoint and try to parse JSON, else HTML."""
     try:
