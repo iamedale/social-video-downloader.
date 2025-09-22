@@ -5,7 +5,6 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-
 # ----------------- HTML Frontend -----------------
 HTML_PAGE = """
 <!DOCTYPE html>
@@ -18,41 +17,48 @@ HTML_PAGE = """
   <style>
     body {
       font-family: 'Poppins', sans-serif;
-      background: linear-gradient(135deg, #22c1c3, #fdbb2d);
+      background: linear-gradient(135deg, #6a11cb, #2575fc);
       display: flex;
       justify-content: center;
       align-items: center;
-      height: 100vh;
+      min-height: 100vh;
       margin: 0;
+      padding: 20px;
+      color: #fff;
     }
     .card {
-      backdrop-filter: blur(12px) saturate(180%);
-      -webkit-backdrop-filter: blur(12px) saturate(180%);
-      background: rgba(255, 255, 255, 0.2);
-      border-radius: 16px;
-      padding: 30px;
-      width: 90%;
+      backdrop-filter: blur(14px) saturate(180%);
+      -webkit-backdrop-filter: blur(14px) saturate(180%);
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 18px;
+      padding: 30px 25px;
+      width: 100%;
       max-width: 420px;
       text-align: center;
-      color: #fff;
       box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+      animation: fadeIn 0.6s ease-in-out;
     }
     h1 {
-      margin-bottom: 10px;
-      font-size: 24px;
+      margin-bottom: 8px;
+      font-size: 26px;
       font-weight: 600;
+    }
+    p {
+      font-size: 14px;
+      opacity: 0.85;
+      margin-bottom: 18px;
     }
     input, select {
       width: 100%;
       padding: 12px;
-      margin: 12px 0;
+      margin: 10px 0;
       border: none;
       border-radius: 8px;
       outline: none;
       font-size: 14px;
     }
     button {
-      background: #22c55e;
+      background: #4f46e5;
       color: #fff;
       padding: 12px;
       width: 100%;
@@ -64,7 +70,7 @@ HTML_PAGE = """
       transition: background 0.3s ease, transform 0.2s;
     }
     button:hover:enabled {
-      background: #16a34a;
+      background: #4338ca;
       transform: translateY(-2px);
     }
     button:disabled {
@@ -79,11 +85,11 @@ HTML_PAGE = """
       width: 100%;
       border-radius: 12px;
       margin-bottom: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
     .spinner {
       border: 4px solid rgba(255,255,255,0.3);
-      border-top: 4px solid #22c55e;
+      border-top: 4px solid #4f46e5;
       border-radius: 50%;
       width: 32px;
       height: 32px;
@@ -91,16 +97,29 @@ HTML_PAGE = """
       margin: 20px auto 0;
       display: none;
     }
+    footer {
+      margin-top: 15px;
+      font-size: 12px;
+      opacity: 0.7;
+    }
     @keyframes spin {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    @media (max-width: 480px) {
+      h1 { font-size: 22px; }
+      .card { padding: 20px; }
     }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>🎵 TikTok Downloader</h1>
-    <p style="font-size:14px; margin-bottom:15px;">Download videos without watermark • Free • Fast</p>
+    <p>Download videos without watermark • Free • Fast</p>
     <input type="text" id="url" placeholder="Paste TikTok link here" required>
     <button onclick="fetchInfo()">🔍 Preview</button>
 
@@ -119,6 +138,7 @@ HTML_PAGE = """
     </div>
 
     <div class="spinner" id="spinner"></div>
+    <footer>⚡ Built with Flask + yt-dlp</footer>
   </div>
 </body>
 </html>
